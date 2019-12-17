@@ -1,0 +1,37 @@
+--Saved Searches Using dtSearches and Their Terms
+
+SELECT [Name], SearchProviderID, ArtifactID INTO #TEMP FROM [EDDSDBO].[ExtendedSearch] WHERE SearchProviderID <> ''
+
+CREATE TABLE #TEMP2 (
+    ArtifactID INT,
+    [Name] VARCHAR(MAX),
+    Terms VARCHAR(MAX)
+);
+
+DECLARE @au_id char (11)
+SELECT @au_id = min(ArtifactID) FROM #TEMP
+
+WHILE @au_id is not NULL
+BEGIN
+      DECLARE @xml xml
+SET @xml = (
+    SELECT SearchText
+    FROM EDDSDBO.ExtendedSearch (nolock)
+    WHERE ArtifactID=@au_id -- search artifact ID
+);
+WITH XMLNAMESPACES('kCura.EDDS.DTSearchSearchProvider' as dt)
+INSERT INTO #TEMP2
+SELECT
+    t.ArtifactID,
+    t.[Name],
+    tbl.b.value('dt:SearchText[1]', 'varchar(500)') as Terms
+FROM @xml.nodes('/InputData') as tbl(b), #Temp t (nolock)
+WHERE t.ArtifactID = @au_id
+    SELECT @au_id = min(ArtifactID) FROM #TEMP WHERE ArtifactID > @au_id
+end;
+SELECT t.*,s.SearchProviderName FROM #TEMP2 t
+join eddsdbo.ExtendedSearch s
+on T.ArtifactID = s.ArtifactID
+
+DROP TABLE #TEMP
+DROP TABLE #TEMP2
